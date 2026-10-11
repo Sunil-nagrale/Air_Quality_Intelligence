@@ -6,8 +6,7 @@ export class AuthService {
   static getCurrentUser(): UserSession | null {
     const raw = localStorage.getItem(this.STORAGE_KEY);
     if (!raw) {
-      // Default to mandatory Personal Demo user if not signed in
-      return { email: 'parasnath@gmail.com', role: 'personal' };
+      return null;
     }
     try {
       return JSON.parse(raw);

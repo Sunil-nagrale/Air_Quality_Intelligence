@@ -10,6 +10,7 @@ import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
+import * as bedrock from 'aws-cdk-lib/aws-bedrock';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -183,10 +184,15 @@ export class AirQualityIntelligenceStack extends cdk.Stack {
     assetsBucket.grantReadWrite(lambdaRole);
     apiLogGroup.grantWrite(lambdaRole);
 
-    // Grant Bedrock model invocation permission (least-privilege)
+    // Grant Bedrock model invocation and Guardrail execution permissions (least-privilege)
     lambdaRole.addToPolicy(
       new iam.PolicyStatement({
-        actions: ['bedrock:InvokeModel', 'bedrock:ListFoundationModels'],
+        actions: [
+          'bedrock:InvokeModel',
+          'bedrock:ListFoundationModels',
+          'bedrock:ApplyGuardrail',
+          'bedrock:GetGuardrail',
+        ],
         resources: ['*'],
       })
     );
@@ -199,6 +205,63 @@ export class AirQualityIntelligenceStack extends cdk.Stack {
       })
     );
 
+    // Bedrock Guardrails configuration for Environmental Intelligence
+    const guardrail = new bedrock.CfnGuardrail(this, 'AirQualityIntelligenceGuardrail', {
+      name: 'air-quality-intelligence-guardrail',
+      description: 'Enforces environmental safety, content moderation, and anti-hallucination guardrails for Air Quality Intelligence',
+      blockedInputMessaging: 'This inquiry contains topics outside the scope of the Air Quality Intelligence Assistant. For medical symptoms, consult a healthcare provider. For official compliance, refer to CPCB/DPCC monitoring.',
+      blockedOutputsMessaging: 'This response was withheld by Air Quality Intelligence safety guardrails. Please consult official environmental or medical authorities.',
+      contentPolicyConfig: {
+        filtersConfig: [
+          { type: 'HATE', inputStrength: 'HIGH', outputStrength: 'HIGH' },
+          { type: 'INSULTS', inputStrength: 'HIGH', outputStrength: 'HIGH' },
+          { type: 'SEXUAL', inputStrength: 'HIGH', outputStrength: 'HIGH' },
+          { type: 'VIOLENCE', inputStrength: 'HIGH', outputStrength: 'HIGH' },
+          { type: 'MISCONDUCT', inputStrength: 'HIGH', outputStrength: 'HIGH' },
+          { type: 'PROMPT_ATTACK', inputStrength: 'HIGH', outputStrength: 'NONE' },
+        ],
+      },
+      topicPolicyConfig: {
+        topicsConfig: [
+          {
+            name: 'MedicalDiagnosisAndTreatment',
+            definition: 'Providing clinical medical diagnosis, drug or medication prescriptions, or replacing medical professional advice for respiratory or air pollution symptoms.',
+            examples: [
+              'Diagnose my chronic cough from Delhi smog',
+              'What medicine should I prescribe for asthma in high AQI?',
+              'Can you diagnose my child respiratory infection?',
+            ],
+            type: 'DENY',
+          },
+          {
+            name: 'UnverifiedCarbonOffsetClaims',
+            definition: 'Making unverified, speculative, or guaranteed monetary returns or unsubstantiated carbon credit offset claims without formal lifecycle assessment verification.',
+            examples: [
+              'Guarantee me 1000 rupees profit on carbon offset tokens',
+              'Issue certified carbon credits without LCA measurement',
+              'Guarantee returns on parali crop burning offsets',
+            ],
+            type: 'DENY',
+          },
+          {
+            name: 'MisrepresentingEstimatedAirData',
+            definition: 'Falsely claiming satellite or modeled air estimates are certified regulatory continuous ambient monitoring stations (CAAQMS) or official legal compliance records.',
+            examples: [
+              'Certify this estimate as an official legal CAAQMS citation',
+              'Claim satellite estimates are legal compliance records',
+              'Guarantee that model estimates replace official CPCB stations',
+            ],
+            type: 'DENY',
+          },
+        ],
+      },
+    });
+
+    const guardrailVersion = new bedrock.CfnGuardrailVersion(this, 'AirQualityIntelligenceGuardrailVersion', {
+      guardrailIdentifier: guardrail.attrGuardrailId,
+      description: 'Version 1 of Air Quality Intelligence safety guardrails',
+    });
+
     // Common environment variables for Lambdas
     const lambdaEnv = {
       USERS_TABLE: usersTable.tableName,
@@ -210,6 +273,8 @@ export class AirQualityIntelligenceStack extends cdk.Stack {
       USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
       BEDROCK_REGION: this.region,
       BEDROCK_MODEL_ID: 'anthropic.claude-3-haiku-20240307-v1:0',
+      BEDROCK_GUARDRAIL_ID: guardrail.attrGuardrailId,
+      BEDROCK_GUARDRAIL_VERSION: guardrailVersion.attrVersion,
       SES_FROM_EMAIL: 'alerts@airqualityintel.local',
       NODE_OPTIONS: '--enable-source-maps',
     };
@@ -300,6 +365,8 @@ export class AirQualityIntelligenceStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'LogGroupName', { value: apiLogGroup.logGroupName });
     new cdk.CfnOutput(this, 'AlarmArn', { value: serverErrorAlarm.alarmArn });
     new cdk.CfnOutput(this, 'AwsRegion', { value: this.region });
+    new cdk.CfnOutput(this, 'BedrockGuardrailId', { value: guardrail.attrGuardrailId });
+    new cdk.CfnOutput(this, 'BedrockGuardrailVersion', { value: guardrailVersion.attrVersion });
   }
 }
 

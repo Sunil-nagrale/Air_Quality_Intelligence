@@ -1,0 +1,72 @@
+name: Deploy Air Quality Intelligence Frontend to AWS Amplify
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Build & Deploy Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Frontend Dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Build Production Frontend
+        run: |
+          cd frontend
+          VITE_API_BASE_URL="https://g40lv6qp63.execute-api.ap-south-1.amazonaws.com/prod/api" \
+          VITE_COGNITO_USER_POOL_ID="ap-south-1_TZulzt34Z" \
+          VITE_COGNITO_CLIENT_ID="22obcp3gqkb8337rulq23jp0vp" \
+          VITE_AWS_REGION="ap-south-1" \
+          npm run build
+
+      - name: Package Frontend Artifact
+        run: |
+          cd frontend/dist
+          zip -r ../../dist.zip .
+          cd ../..
+
+      - name: Configure AWS Credentials (OIDC Federation)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::663252309163:role/AirQualityIntelligence-GitHubActionsDeployRole
+          aws-region: ap-south-1
+
+      - name: Deploy to AWS Amplify App
+        run: |
+          echo "Initiating Amplify deployment for app d1e0d9zuwquthh branch main..."
+          DEPLOY_INFO=$(aws amplify create-deployment --app-id d1e0d9zuwquthh --branch-name main --region ap-south-1)
+          ZIP_UPLOAD_URL=$(echo "$DEPLOY_INFO" | jq -r '.zipUploadUrl')
+          JOB_ID=$(echo "$DEPLOY_INFO" | jq -r '.jobId')
+          
+          if [ -z "$ZIP_UPLOAD_URL" ] || [ "$ZIP_UPLOAD_URL" = "null" ]; then
+            echo "Error: Failed to obtain zipUploadUrl from Amplify"
+            exit 1
+          fi
+
+          echo "Uploading distribution package..."
+          curl -s -S -X PUT -T dist.zip -H "Content-Type: application/zip" "$ZIP_UPLOAD_URL"
+
+          echo "Starting Amplify deployment for job $JOB_ID..."
+          aws amplify start-deployment --app-id d1e0d9zuwquthh --branch-name main --job-id "$JOB_ID" --region ap-south-1
+
+          echo "Deployment started successfully! Job ID: $JOB_ID"

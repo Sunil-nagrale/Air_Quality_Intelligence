@@ -26,7 +26,6 @@ interface HeaderProps {
   onNavigate: (route: AppRoute) => void;
   currentUser: { email: string; role: string; isDemo?: boolean } | null;
   onSignOut: () => void;
-  onQuickSwitchRole?: (role: UserRole) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -34,7 +33,6 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigate,
   currentUser,
   onSignOut,
-  onQuickSwitchRole,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
@@ -170,41 +168,6 @@ export const Header: React.FC<HeaderProps> = ({
                         <Sprout className="w-3.5 h-3.5 text-forest" /> Parali Marketplace
                       </button>
                     </div>
-
-                    {onQuickSwitchRole && (
-                      <div className="py-2 border-b border-ivory-200 space-y-1">
-                        <div className="text-[10px] text-gray-400 uppercase font-bold px-2">
-                          Switch Demo Persona:
-                        </div>
-                        <button
-                          onClick={() => {
-                            onQuickSwitchRole('personal');
-                            setRoleDropdownOpen(false);
-                          }}
-                          className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-ivory-100 font-semibold text-gray-700 flex items-center gap-2"
-                        >
-                          <Activity className="w-3.5 h-3.5 text-forest" /> Citizen (Paras Nath)
-                        </button>
-                        <button
-                          onClick={() => {
-                            onQuickSwitchRole('school');
-                            setRoleDropdownOpen(false);
-                          }}
-                          className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-ivory-100 font-semibold text-gray-700 flex items-center gap-2"
-                        >
-                          <School className="w-3.5 h-3.5 text-forest" /> Principal (KV Kailashahar)
-                        </button>
-                        <button
-                          onClick={() => {
-                            onQuickSwitchRole('farmer');
-                            setRoleDropdownOpen(false);
-                          }}
-                          className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-ivory-100 font-semibold text-gray-700 flex items-center gap-2"
-                        >
-                          <Sprout className="w-3.5 h-3.5 text-forest" /> Farmer (Sunil Singh)
-                        </button>
-                      </div>
-                    )}
 
                     <button
                       onClick={() => {

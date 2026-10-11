@@ -110,10 +110,6 @@ export const App: React.FC = () => {
     setCurrentUser(null);
   };
 
-  const handleQuickSwitchRole = (role: UserRole) => {
-    handleSelectDemoPersona(role, role === 'personal' ? '/personal' : role === 'school' ? '/school' : '/marketplace');
-  };
-
   return (
     <div className="min-h-screen bg-ivory text-forest flex flex-col font-sans">
       <Header
@@ -121,7 +117,6 @@ export const App: React.FC = () => {
         onNavigate={navigateTo}
         currentUser={currentUser}
         onSignOut={handleSignOut}
-        onQuickSwitchRole={handleQuickSwitchRole}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">

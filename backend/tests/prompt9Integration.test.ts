@@ -114,6 +114,33 @@ describe('Grounded AI, Notifications, Scheduling & Observability (Prompt 9)', ()
       assert.ok(!res.explanation.includes('SECRET_KEY'));
       assert.ok(!res.explanation.includes('</payload>'));
     });
+
+    it('initializes and passes GuardrailIdentifier and GuardrailVersion when configured', () => {
+      const guardrailService = new BedrockAssistantService(
+        'ap-south-1',
+        'anthropic.claude-3-haiku-20240307-v1:0',
+        'guardrail-aq-1234567890ab',
+        '1'
+      );
+      assert.strictEqual(guardrailService.getGuardrailIdentifier(), 'guardrail-aq-1234567890ab');
+      assert.strictEqual(guardrailService.getGuardrailVersion(), '1');
+    });
+
+    it('enforces input length bounding (max 1000 chars) preventing token flooding attacks', async () => {
+      const oversizedInput = {
+        module: 'PERSONAL_COPILOT' as const,
+        locationName: 'Delhi ' + 'A'.repeat(2500),
+        calculatedAQI: 200,
+        dominantPollutant: 'PM2.5',
+        category: 'Poor',
+        activityOrEventName: 'Long Distance Running',
+        candidateWindowSummary: 'Slot ' + 'B'.repeat(2500),
+      };
+
+      const res = await service.getGroundedExplanation(oversizedInput, false);
+      assert.strictEqual(res.isAiGenerated, false);
+      assert.ok(res.explanation.length < 3000);
+    });
   });
 
   describe('2. Amazon SES Email Notification Delivery & Idempotency Safeguards', () => {

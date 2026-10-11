@@ -124,18 +124,32 @@ export class BedrockAssistantService {
   private modelId: string;
   private region: string;
   private isEnabled: boolean;
+  private guardrailIdentifier?: string;
+  private guardrailVersion?: string;
 
   constructor(
     region: string = process.env.AWS_REGION || 'ap-south-1',
-    modelId: string = process.env.BEDROCK_MODEL_ID || 'anthropic.claude-3-haiku-20240307-v1:0'
+    modelId: string = process.env.BEDROCK_MODEL_ID || 'anthropic.claude-3-haiku-20240307-v1:0',
+    guardrailIdentifier: string | undefined = process.env.BEDROCK_GUARDRAIL_ID,
+    guardrailVersion: string | undefined = process.env.BEDROCK_GUARDRAIL_VERSION || '1'
   ) {
     this.region = region;
     this.modelId = modelId;
+    this.guardrailIdentifier = guardrailIdentifier;
+    this.guardrailVersion = guardrailVersion;
     this.isEnabled = process.env.BEDROCK_ENABLED === 'true';
   }
 
   public isConfigured(): boolean {
     return this.isEnabled && Boolean(this.modelId);
+  }
+
+  public getGuardrailIdentifier(): string | undefined {
+    return this.guardrailIdentifier;
+  }
+
+  public getGuardrailVersion(): string | undefined {
+    return this.guardrailVersion;
   }
 
   private getClient(): BedrockRuntimeClient {
@@ -146,10 +160,12 @@ export class BedrockAssistantService {
   }
 
   /**
-   * Sanitizes input strings against prompt injection attempts
+   * Sanitizes input strings against prompt injection attempts with strict length bounds
    */
   private sanitizeInput(str: string): string {
+    if (!str) return '';
     return str
+      .slice(0, 1000)
       .replace(/ignore\s+(previous|all)\s+instructions/gi, '[filtered]')
       .replace(/system\s+prompt/gi, '[filtered]')
       .replace(/secret_?[a-z0-9_-]*/gi, '[filtered]')
@@ -210,15 +226,42 @@ Generate a strictly grounded 2-3 sentence explanation:`;
         messages: [{ role: 'user', content: prompt }],
       };
 
-      const command = new InvokeModelCommand({
+      const invokeParams: any = {
         modelId: this.modelId,
         contentType: 'application/json',
         accept: 'application/json',
         body: Buffer.from(JSON.stringify(payload)),
-      });
+      };
+
+      if (this.guardrailIdentifier) {
+        invokeParams.guardrailIdentifier = this.guardrailIdentifier;
+        invokeParams.guardrailVersion = this.guardrailVersion || '1';
+      }
+
+      const command = new InvokeModelCommand(invokeParams);
 
       const response = await this.getClient().send(command);
       const resBody = JSON.parse(new TextDecoder().decode(response.body));
+
+      // Handle Bedrock Guardrail intervention
+      if (resBody?.stop_reason === 'guardrail_intervened') {
+        logger.warn(
+          'AIR_QUALITY',
+          'BedrockGuardrailIntervention',
+          `Bedrock Guardrail intervened for ${ctx.module}`,
+          correlationId,
+          { guardrailId: this.guardrailIdentifier, module: ctx.module }
+        );
+
+        return {
+          explanation: generateDeterministicExplanation(sanitizedContext),
+          isAiGenerated: false,
+          modelUsed: 'deterministic-rules',
+          groundingStatus: 'VERIFIED_DETERMINISTIC',
+          cloudBedrockConfigured: true,
+        };
+      }
+
       const aiText = resBody?.content?.[0]?.text;
 
       if (aiText) {
