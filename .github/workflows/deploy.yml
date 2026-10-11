@@ -50,6 +50,7 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::663252309163:role/AirQualityIntelligence-GitHubActionsDeployRole
           aws-region: ap-south-1
+          audience: sts.amazonaws.com
 
       - name: Deploy to AWS Amplify App
         run: |
