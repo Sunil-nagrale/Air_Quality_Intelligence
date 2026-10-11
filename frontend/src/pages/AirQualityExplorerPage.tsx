@@ -28,6 +28,7 @@ import {
   SegmentedControl,
 } from '../components/ui';
 import { ProvenanceBadge } from '../components/common/ProvenanceBadge';
+import { AqiGauge } from '../components/common/AqiGauge';
 import { AppRoute, RegionalStationStatus } from '../types';
 
 interface AirQualityExplorerPageProps {
@@ -292,45 +293,61 @@ export const AirQualityExplorerPage: React.FC<AirQualityExplorerPageProps> = ({ 
           </div>
           {activeStation.isTelemetryAvailable ? (
             <>
-              {/* AQI Score & Risk Indicator */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="p-5 bg-ivory-100 rounded-2xl border border-ivory-300 flex flex-col justify-between">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                    Calculated CPCB NAQI
-                  </span>
-                  <div className="my-2">
-                    <span className="text-4xl font-black text-forest">{activeStation.aqi}</span>
-                    <span className="text-xs font-bold text-gray-400 ml-2">Sub-Index</span>
-                  </div>
-                  <RiskIndicator
+              {/* AQI Score & Risk Indicator with Custom Instrument Gauge */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+                {/* Gauge Display Column */}
+                <div className="lg:col-span-5 p-6 bg-ivory-100/80 rounded-2xl border border-ivory-300 flex flex-col items-center justify-center">
+                  <AqiGauge
                     aqi={activeStation.aqi}
                     category={activeStation.category as any}
-                    variant="pill"
+                    dominantPollutant={activeStation.dominant}
+                    theme="light"
+                    size="md"
                   />
+                  <div className="mt-3 text-center">
+                    <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block">
+                      Calculated CPCB NAQI Sub-Index
+                    </span>
+                    <span className="text-xs text-gray-600 font-medium">
+                      Piecewise linear breakpoint calculation
+                    </span>
+                  </div>
                 </div>
 
-                <div className="p-5 bg-ivory-100 rounded-2xl border border-ivory-300 flex flex-col justify-between">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                    Dominant Criteria Pollutant
-                  </span>
-                  <div className="my-2">
-                    <span className="text-2xl font-black text-forest">{activeStation.dominant}</span>
-                  </div>
-                  <span className="text-xs text-gray-500 font-medium">
-                    Governing highest sub-index
-                  </span>
-                </div>
+                {/* Dominant Pollutant & 24h Trend Column */}
+                <div className="lg:col-span-7 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-5 bg-ivory-100/80 rounded-2xl border border-ivory-300 flex flex-col justify-between">
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                        Dominant Criteria Pollutant
+                      </span>
+                      <div className="my-2">
+                        <span className="text-3xl font-black text-forest-950">{activeStation.dominant}</span>
+                      </div>
+                      <span className="text-xs text-gray-500 font-medium">
+                        Governing maximum sub-index concentration
+                      </span>
+                    </div>
 
-                <div className="p-5 bg-ivory-100 rounded-2xl border border-ivory-300 flex flex-col justify-between">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                    24-Hour Concentration Trend
-                  </span>
-                  <div className="my-2">
-                    <MiniChart data={activeStation.history24h} height={50} />
+                    <div className="p-5 bg-ivory-100/80 rounded-2xl border border-ivory-300 flex flex-col justify-between">
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                        24-Hour Concentration Trend
+                      </span>
+                      <div className="my-2">
+                        <MiniChart data={activeStation.history24h} height={50} />
+                      </div>
+                      <span className="text-[11px] text-gray-500 font-medium">
+                        Observation period: {activeStation.lastUpdated}
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-[11px] text-gray-500 font-medium">
-                    Updated {activeStation.lastUpdated}
-                  </span>
+
+                  <div className="p-4 rounded-xl bg-emerald-50/80 border border-emerald-200/80 text-xs text-emerald-950 flex items-start gap-2.5">
+                    <Activity className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                    <span>
+                      <strong>Health Exposure Guidance:</strong> {activeStation.category === 'Poor' || activeStation.category === 'Very Poor' ? 'Sensitive groups and school children should minimize prolonged strenuous morning exertion outdoors.' : 'Moderate air quality; sensitive respiratory groups should track afternoon shifts.'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
