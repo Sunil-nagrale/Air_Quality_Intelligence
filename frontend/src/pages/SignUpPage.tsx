@@ -1,15 +1,8 @@
 import React, { useState } from 'react';
 import {
   ArrowLeft,
-  UserPlus,
   ShieldCheck,
-  AlertCircle,
   ArrowRight,
-  School,
-  Sprout,
-  Factory,
-  User,
-  CheckCircle2,
 } from 'lucide-react';
 import {
   Button,
@@ -21,11 +14,10 @@ import {
   CardFooter,
   FormField,
   Input,
-  Select,
   AlertBanner,
   Badge,
 } from '../components/ui';
-import { AppRoute, UserRole } from '../types';
+import { AppRoute } from '../types';
 import { cognitoAuth } from '../services/cognitoAuth';
 
 interface SignUpPageProps {
@@ -33,15 +25,13 @@ interface SignUpPageProps {
 }
 
 export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigate }) => {
-  const [role, setRole] = useState<UserRole>('personal');
   const [email, setEmail] = useState('');
-  const [orgName, setOrgName] = useState('');
-  const [district, setDistrict] = useState('Sangrur');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [notice, setNotice] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
 
   // Step 2 verification code state
   const [isVerifying, setIsVerifying] = useState(false);
@@ -51,12 +41,21 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigate }) => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) {
+    const cleanEmail = email.trim();
+    if (!cleanEmail) {
       setNotice('Email address is required.');
+      return;
+    }
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setNotice('Please enter a valid email address.');
       return;
     }
     if (password.length < 8) {
       setNotice('Password must be at least 8 characters long.');
+      return;
+    }
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+      setNotice('Password must include at least one uppercase letter, one lowercase letter, and one number.');
       return;
     }
     if (password !== confirmPassword) {
@@ -79,17 +78,14 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigate }) => {
     }
 
     try {
-      const customAttributes: Record<string, string> = {};
-      if (orgName) customAttributes['custom:orgName'] = orgName;
-      if (district && role === 'farmer') customAttributes['custom:district'] = district;
-
-      const result = await cognitoAuth.signUp(email, password, role, customAttributes);
+      // Public self-registration strictly assigns least-privilege personal role
+      const result = await cognitoAuth.signUp(cleanEmail, password, 'personal');
       setIsLoading(false);
 
       if (!result.userConfirmed) {
         setIsVerifying(true);
         setSuccessMsg(
-          'Account created! A 6-digit verification code has been sent to your email. Enter it below to activate your account.'
+          'Account created! A 6-digit verification code has been dispatched to your email by Amazon Cognito. Enter it below to activate your account.'
         );
       } else {
         setSuccessMsg('Account registered and confirmed. You may now sign in.');
@@ -98,6 +94,21 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigate }) => {
     } catch (err: any) {
       setIsLoading(false);
       setNotice(err.message || 'Registration failed.');
+    }
+  };
+
+  const handleResendCode = async () => {
+    const cleanEmail = email.trim();
+    if (!cleanEmail) return;
+    setIsResending(true);
+    setNotice('');
+    try {
+      await cognitoAuth.resendConfirmationCode(cleanEmail);
+      setIsResending(false);
+      setSuccessMsg('A new verification code has been dispatched to your email.');
+    } catch (err: any) {
+      setIsResending(false);
+      setNotice(err.message || 'Failed to resend verification code.');
     }
   };
 
@@ -146,7 +157,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigate }) => {
           <CardDescription>
             {isVerifying
               ? 'Enter the 6-digit confirmation code dispatched by Amazon Cognito.'
-              : 'Select your operational persona to establish institutional policies, list residue, or track air quality.'}
+              : 'Create an Individual Citizen account to track localized air quality and plan exposure-safe activities.'}
           </CardDescription>
         </CardHeader>
 
@@ -177,52 +188,15 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigate }) => {
 
           {!isVerifying ? (
             <form onSubmit={handleSignUp} className="space-y-4">
-              <FormField label="Operational Persona" htmlFor="signup-role" required>
-                <Select
-                  id="signup-role"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as UserRole)}
-                >
-                  <option value="personal">Individual Citizen / Family (Personal Air Copilot)</option>
-                  <option value="school">School Administrator (Air Safety Planner)</option>
-                  <option value="farmer">Stubble Farmer / Supplier (Parali Marketplace)</option>
-                  <option value="buyer">Industrial Off-Taker / Bio-Processor (Feedstock Buyer)</option>
-                </Select>
-              </FormField>
-
-              {(role === 'school' || role === 'buyer') && (
-                <FormField
-                  label={role === 'school' ? 'School / Institution Name' : 'Company / Processing Plant Name'}
-                  htmlFor="signup-org"
-                  required
-                >
-                  <Input
-                    id="signup-org"
-                    type="text"
-                    placeholder={role === 'school' ? 'e.g. Kendriya Vidyalaya Kailashahar' : 'e.g. Verbio India Bio-CNG Unit'}
-                    value={orgName}
-                    onChange={(e) => setOrgName(e.target.value)}
-                  />
-                </FormField>
-              )}
-
-              {role === 'farmer' && (
-                <FormField label="Agricultural District" htmlFor="signup-district" required>
-                  <Select
-                    id="signup-district"
-                    value={district}
-                    onChange={(e) => setDistrict(e.target.value)}
-                  >
-                    <option value="Sangrur">Sangrur, Punjab</option>
-                    <option value="Ludhiana">Ludhiana, Punjab</option>
-                    <option value="Bathinda">Bathinda, Punjab</option>
-                    <option value="Patiala">Patiala, Punjab</option>
-                    <option value="Karnal">Karnal, Haryana</option>
-                    <option value="Kurukshetra">Kurukshetra, Haryana</option>
-                    <option value="Ambala">Ambala, Haryana</option>
-                  </Select>
-                </FormField>
-              )}
+              <div className="p-3 bg-forest-50 border border-forest-200 rounded-xl text-xs text-forest-800 space-y-1">
+                <div className="font-bold flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-forest" />
+                  <span>Public Self-Registration: Individual Citizen Role</span>
+                </div>
+                <p className="text-forest-700 text-[11px] leading-relaxed">
+                  Public accounts are provisioned with least-privilege personal access. Institutional roles (School Administrator, Stubble Farmer, Feedstock Buyer) are provisioned through administrative authorization or can be explored in the Demo Portal.
+                </p>
+              </div>
 
               <FormField label="Email Address" htmlFor="signup-email" required>
                 <Input
@@ -269,7 +243,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigate }) => {
               </div>
 
               <div className="text-[11px] text-gray-500 bg-ivory-100 p-3 rounded-xl border border-ivory-300">
-                <strong>Password Policy:</strong> Minimum 8 characters with at least one uppercase letter, one lowercase letter, and one number. Roles are mapped server-side to verified Cognito RBAC groups.
+                <strong>Password Policy:</strong> Minimum 8 characters with at least one uppercase letter, one lowercase letter, and one number.
               </div>
 
               <Button
@@ -295,13 +269,23 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigate }) => {
               <Button type="submit" variant="primary" className="w-full" isLoading={isLoading}>
                 Confirm &amp; Complete Registration
               </Button>
-              <button
-                type="button"
-                onClick={() => setIsVerifying(false)}
-                className="w-full text-xs font-bold text-gray-500 hover:text-forest text-center"
-              >
-                Back to Registration Form
-              </button>
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  type="button"
+                  onClick={handleResendCode}
+                  disabled={isResending}
+                  className="text-xs font-semibold text-forest hover:underline disabled:opacity-50"
+                >
+                  {isResending ? 'Resending code...' : 'Resend verification code'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsVerifying(false)}
+                  className="text-xs font-bold text-gray-500 hover:text-forest"
+                >
+                  Back to form
+                </button>
+              </div>
             </form>
           )}
 

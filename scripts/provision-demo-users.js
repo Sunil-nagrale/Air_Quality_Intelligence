@@ -109,7 +109,6 @@ async function provision() {
             { Name: 'email', Value: user.email },
             { Name: 'email_verified', Value: 'true' },
             { Name: 'name', Value: user.name },
-            { Name: 'custom:role', Value: user.role },
           ],
           MessageAction: 'SUPPRESS',
         })

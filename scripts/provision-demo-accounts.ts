@@ -18,7 +18,6 @@ export interface ProvisioningUserConfig {
   role: 'PERSONAL_USER' | 'FARMER' | 'SCHOOL_ADMIN';
   cognitoGroup: string;
   name: string;
-  customAttributes: Record<string, string>;
 }
 
 export const DEMO_ACCOUNT_DEFINITIONS: ProvisioningUserConfig[] = [
@@ -27,33 +26,18 @@ export const DEMO_ACCOUNT_DEFINITIONS: ProvisioningUserConfig[] = [
     role: 'PERSONAL_USER',
     cognitoGroup: 'Role_Personal',
     name: 'Paras Nath',
-    customAttributes: {
-      'custom:role': 'PERSONAL_USER',
-      name: 'Paras Nath',
-    },
   },
   {
     email: 'sunilnagrale@gmail.com',
     role: 'FARMER',
     cognitoGroup: 'Role_Farmer',
     name: 'Sardar Sunil Singh',
-    customAttributes: {
-      'custom:role': 'FARMER',
-      name: 'Sardar Sunil Singh',
-      'custom:district': 'Sangrur',
-    },
   },
   {
     email: 'kvkailashahar@gmail.com',
     role: 'SCHOOL_ADMIN',
     cognitoGroup: 'Role_School',
     name: 'Principal Sharma',
-    customAttributes: {
-      'custom:role': 'SCHOOL_ADMIN',
-      name: 'Principal Sharma',
-      'custom:schoolId': 'KV_KAILASHAHAR',
-      'custom:tenantId': 'TENANT_KV_4402',
-    },
   },
 ];
 

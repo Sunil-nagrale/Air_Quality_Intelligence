@@ -106,9 +106,9 @@ export function validateCognitoToken(
       }
     }
 
-    // Map Cognito groups to authoritative UserRole
+    // Map Cognito groups to authoritative UserRole (least-privilege default)
     const groups: string[] = payload['cognito:groups'] || [];
-    let role: UserRole = 'PERSONAL_USER'; // Default role if no group
+    let role: UserRole = 'PERSONAL_USER';
 
     if (groups.includes('Role_Admin') || groups.includes('PLATFORM_ADMIN')) {
       role = 'PLATFORM_ADMIN';
@@ -118,10 +118,8 @@ export function validateCognitoToken(
       role = 'FARMER';
     } else if (groups.includes('Role_Buyer') || groups.includes('BUYER')) {
       role = 'BUYER';
-    } else if (groups.includes('Role_Personal') || groups.includes('PERSONAL_USER')) {
+    } else {
       role = 'PERSONAL_USER';
-    } else if (payload['custom:role']) {
-      role = payload['custom:role'] as UserRole;
     }
 
     const principal: AuthPrincipal = {

@@ -90,9 +90,18 @@ export class CognitoAuthService {
       case 'UsernameExistsException':
         return 'An account with this email address already exists. Please sign in instead.';
       case 'LimitExceededException':
+      case 'TooManyRequestsException':
         return 'Too many attempts. Please wait a few moments before trying again.';
+      case 'InvalidParameterException':
+        return 'Invalid registration parameters. Please ensure email format and password meet requirements.';
+      case 'UserLambdaValidationException':
+        return 'Registration validation failed. Please check your details.';
       default:
-        return originalMessage;
+        // Do not expose sensitive internal exception details to the user
+        if (originalMessage && !originalMessage.includes('arn:') && !originalMessage.includes('AWS')) {
+          return originalMessage;
+        }
+        return 'An error occurred during authentication. Please check your details and try again.';
     }
   }
 
@@ -137,6 +146,7 @@ export class CognitoAuthService {
     const groups: string[] = payload?.['cognito:groups'] || [];
     let officialRole: OfficialRole = 'PERSONAL_USER';
 
+    // Authoritative role assignment derived strictly from Cognito RBAC groups
     if (groups.includes('Role_Admin') || groups.includes('PLATFORM_ADMIN')) {
       officialRole = 'PLATFORM_ADMIN';
     } else if (groups.includes('Role_School') || groups.includes('SCHOOL_ADMIN')) {
@@ -145,8 +155,8 @@ export class CognitoAuthService {
       officialRole = 'FARMER';
     } else if (groups.includes('Role_Buyer') || groups.includes('BUYER')) {
       officialRole = 'BUYER';
-    } else if (payload?.['custom:role']) {
-      officialRole = payload['custom:role'] as OfficialRole;
+    } else {
+      officialRole = 'PERSONAL_USER';
     }
 
     const roleMapping: Record<OfficialRole, UserRole> = {
@@ -175,24 +185,19 @@ export class CognitoAuthService {
   }
 
   /**
-   * Registers a new user account.
+   * Registers a new user account with default least-privilege role (PERSONAL_USER).
+   * Submits only schema-compliant attributes (email). Institutional attributes are managed via backend profile workflows.
    */
   async signUp(
     email: string,
     password: string,
-    role: UserRole,
-    customAttributes?: Record<string, string>
+    _role: UserRole = 'personal',
+    _customAttributes?: Record<string, string>
   ): Promise<{ userConfirmed: boolean; userSub: string }> {
+    // Only standard attributes defined in the Cognito User Pool schema are passed
     const userAttributes = [
       { Name: 'email', Value: email },
-      { Name: 'custom:role', Value: String(role).toUpperCase() },
     ];
-
-    if (customAttributes) {
-      for (const [key, val] of Object.entries(customAttributes)) {
-        userAttributes.push({ Name: key, Value: val });
-      }
-    }
 
     const data = await this.cognitoRequest('SignUp', {
       ClientId: this.clientId,
